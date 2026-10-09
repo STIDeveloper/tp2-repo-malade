@@ -1,0 +1,122 @@
+
+> architect · big-pickle
+
+→ Read .
+I'll start by getting the lay of the land, then delegate the deep reading.
+✱ Glob "**/*.ts" 13 matches
+→ Read src/routes/rooms.ts
+→ Read src/store.ts
+→ Read src/lib/overlap.ts
+→ Read src/lib/validate.ts
+→ Read src/app.ts
+Small repo. Let me read the core files directly rather than spinning up agents.
+→ Read src/routes/bookings.ts
+→ Read test/overlap.spec.ts
+→ Read test/bookings.test.ts
+→ Read vitest.config.ts
+→ Read package.json
+→ Read README.md
+→ Read src/lib/price.ts
+✱ Glob "scripts/**" 1 match
+A few things already jump out: tests are configured as `*.spec.ts` only (so `bookings.test.ts`/`price.test.ts` never run), and `npm test` isn't defined. Let me check for any business rule on opening hours before deciding.
+✱ Grep "ouverture|horaire|08:00|09:00|open|heure|slot|creneau" 100 matches
+→ Read scripts/checks.sh
+→ Read tsconfig.json
+→ Read opencode.json
+No opening-hours rule exists anywhere. Let me check the post-write hook, since it will judge whatever `dev` writes.
+→ Read test/price.test.ts
+Let me establish the baseline before changing anything.
+
+$ npm run --silent test:unit 2>&1; echo "=== EXIT $? ==="; npm run --silent typecheck 2>&1; echo "=== TYPECHECK EXIT $? ==="; npm run --silent lint 2>&1; echo "=== LINT EXIT $? ==="
+ RUN  v2.1.9 E:/IUT MONTREUIL/S5/IAIAIA/tp2/ex1-avant
+
+ ✓ test/overlap.spec.ts (6 tests | 4 skipped) 2ms
+ ✓ test/store.spec.ts (3 tests) 2ms
+
+ Test Files  2 passed (2)
+      Tests  5 passed | 4 skipped (9)
+   Start at  17:28:45
+   Duration  1.37s (transform 57ms, setup 0ms, collect 94ms, tests 4ms, environment 0ms, prepare 1.26s)
+
+=== EXIT 0 ===
+=== TYPECHECK EXIT 0 ===
+=== LINT EXIT 0 ===
+
+• Plan availability endpoint Planner Agent
+Baseline is green: only `overlap.spec.ts` and `store.spec.ts` run (2 files, 5 passed, 4 skipped). I now have full context and several traps identified. Let me write the plan artifact, since there's one genuinely user-facing ambiguity (the opening-hours window) that deserves sign-off before I commit code.
+✓ Plan availability endpoint Planner Agent
+→ Read .opencode/plans/room-availability.md
+• Implement availability endpoint Dev Agent
+The plan matches my decisions and is concrete. I'll implement it in a single `dev` call — the three steps are one tightly-coupled change on three small files, and splitting would just cause redundant re-reading. Then I'll have a `reviewer` attack it independently.
+✓ Implement availability endpoint Dev Agent
+→ Read src/lib/availability.ts
+→ Read src/routes/rooms.ts
+→ Read test/availability.spec.ts
+Dev claims green — that's a claim, not evidence. Let me independently run the gates, inspect the actual code, and have a `reviewer` try to break it.
+
+$ git status --short; echo "=== DIFFSTAT ==="; git diff --stat; echo "=== GATES ==="; npm run --silent test:unit 2>&1 | tail -20; echo "=== TYPECHECK ==="; npm run --silent typecheck; echo "typecheck exit=$?"; echo "=== LINT ==="; npm run --silent lint; echo "lint exit=$?"
+M README.md
+ M src/routes/rooms.ts
+?? .opencode/plans/room-availability.md
+?? src/lib/availability.ts
+?? test/availability.spec.ts
+=== DIFFSTAT ===
+ README.md           |  1 +
+ src/routes/rooms.ts | 23 +++++++++++++++++++++++
+ 2 files changed, 24 insertions(+)
+=== GATES ===
+
+ RUN  v2.1.9 E:/IUT MONTREUIL/S5/IAIAIA/tp2/ex1-avant
+
+ ✓ test/overlap.spec.ts (6 tests | 4 skipped) 2ms
+ ✓ test/store.spec.ts (3 tests) 3ms
+ ✓ test/availability.spec.ts (12 tests) 58ms
+
+ Test Files  3 passed (3)
+      Tests  17 passed | 4 skipped (21)
+   Start at  17:36:28
+   Duration  999ms (transform 120ms, setup 0ms, collect 381ms, tests 63ms, environment 1ms, prepare 749ms)
+
+=== TYPECHECK ===
+typecheck exit=0
+=== LINT ===
+lint exit=0
+
+• Attack availability endpoint Reviewer Agent
+I've independently confirmed the gates: 3 test files, 17 passed / 4 skipped, typecheck 0, lint 0. The code looks correct on inspection. Let me still put it through an adversarial reviewer — its independence is the point.
+✓ Attack availability endpoint Reviewer Agent
+
+$ git status --short
+M README.md
+ M src/routes/rooms.ts
+?? .opencode/plans/room-availability.md
+?? src/lib/availability.ts
+?? test/availability.spec.ts
+
+Shipped. The reviewer's probes left no residue; the working tree contains exactly the intended four changes plus the plan artifact.
+
+## What was built
+
+`GET /rooms/:id/availability?date=YYYY-MM-DD` → `200 { roomId, date, slots: [{ startsAt, endsAt }] }` — the free one-hour slots for the room's UTC day, chronological.
+
+| File | Change |
+|---|---|
+| `src/lib/availability.ts` | New pure `freeSlots(day, busy)`; mandatory default export, no JSDoc, no I/O (per `src/lib/AGENTS.md`) |
+| `src/routes/rooms.ts` | New `/:id/availability` handler: 404 `{error:"salle inconnue"}` unknown room, 400 `{error:"date invalide"}` for missing/malformed/impossible date |
+| `test/availability.spec.ts` | New: 6 pure unit tests + 6 HTTP tests |
+| `README.md` | Endpoint table row |
+| `.opencode/plans/room-availability.md` | Plan artifact (for review) |
+
+## Evidence (not claims)
+- `npm run test:unit` → **3 files, 17 passed / 4 pre-existing skipped**; `test/availability.spec.ts` is listed (12 tests). Baseline was 2 files / 5 passed.
+- `npm run typecheck` → 0, `npm run lint` → 0.
+- Adversarial reviewer: **NOT REFUTED** — drove the live endpoint through 20+ hostile inputs (array params, `2026-02-30`, `2026-13-99`, unpadded dates, leap-year, midnight-crossing bookings, trailing slash) and confirmed the half-open boundary logic.
+
+## One assumption you should sign off on
+**Opening hours are hardcoded to 08:00–20:00 UTC, one-hour slots (12/day).** No opening-hours rule exists anywhere in the repo, so this is my invention, exposed as `OPENING_HOUR_UTC` / `CLOSING_HOUR_UTC` / `SLOT_MINUTES` for a one-line change. Everything else (slot shape, validation, response) is dictated by repo conventions. If real hours differ, tell me and it's a one-line edit.
+
+## Pre-existing issues found, deliberately NOT fixed (out of scope)
+- **`src/lib/overlap.ts:6`** documents `[debut, fin[` but implements closed intervals (`a1 <= b2 && b1 <= a2`), so `POST /bookings` rejects a booking that starts exactly when the previous ends (409) — contradicting its own JSDoc and the `bookings.test.ts` case for it. I avoided reusing `overlaps()` in the new code because of this.
+- **`test/bookings.test.ts` and `test/price.test.ts` never run** — `vitest.config.ts` includes only `test/**/*.spec.ts`. (This is why my new test is `.spec.ts`.) Worth a rename in a separate ticket.
+- **`AGENTS.md` says `npm test`, but no such script exists** — the real gates are `npm run test:unit|typecheck|lint`. Docs/CI should be reconciled.
+- **CI runs lint only** — `.github/workflows/ci.yml` has `npm run test:unit` commented out.

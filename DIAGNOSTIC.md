@@ -27,7 +27,7 @@ ne pas corriger.
   neuve, sur l'énoncé exact du sujet. Sessions analysées avec
   `scripts/diagnostic/analyse-session.mjs` (qui a travaillé, outils, fichiers écrits, refus,
   tokens). Les journaux bruts des deux exécutions sont dans
-  `captures/exercice1/journal-avant.log` et `journal-apres.log`.
+  `captures/exercice1/journal-avant.txt` et `journal-apres.txt`.
 
 > **Limite à connaître.** Le modèle déclaré par le dépôt (`opencode/deepseek-v4-pro`)
 > exige un compte OpenCode Zen payant : sans compte, `opencode run` répond

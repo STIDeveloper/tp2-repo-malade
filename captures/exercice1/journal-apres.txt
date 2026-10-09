@@ -1,0 +1,205 @@
+
+> architect · big-pickle
+
+• Locate rooms routes and tests Finder Agent
+✗ Locate rooms routes and tests failed Finder Agent
+Error: Subagent failed (task_id: ses_edea2d027ffeyjFVUYMh42rK1D): OpenCode's free tier can only be used from within OpenCode
+• Understand rooms route patterns Explorer Agent
+Je vais d'abord comprendre le dépôt avant de planifier. Je lance des agents de reconnaissance en parallèle.
+✓ Understand rooms route patterns Explorer Agent
+→ Read .opencode/plans/availability-endpoint-notes.md
+→ Read src/routes/rooms.ts
+→ Read src/routes/bookings.ts
+→ Read src/store.ts
+→ Read src/lib/validate.ts
+→ Read test/helpers/http.ts
+L'explorer a livré une base de vérité terrain. Le point bloquant : **aucune spec de « disponibilité »** n'existe (amplitude horaire, pas, format). Je lis les fichiers clés (petits) pour figer le contrat moi-même.
+→ Read test/rooms.spec.ts
+
+# Todos
+[•] Figer le contrat de l'endpoint availability (horaires, pas, format réponse, erreurs)
+[ ] Produire un plan relisible via planner
+[ ] Implémenter via dev (lib pure + route + extension ApiBody + tests)
+[ ] Vérifier: reviewer sur le diff + tester sur l'API réelle
+
+J'ai la vérité terrain complète. Points clés :
+- `rooms.ts` = handlers **synchrones**, 404 manuel ; le modèle validation/400 est `bookings.ts` (`ValidationError`).
+- Aucune notion d'horaires/créneaux/slots n'existe → **le contrat est à figer par moi**.
+- Tests = vitest via `fetch`, `ApiBody` fermée (`test/helpers/http.ts`) à étendre.
+- `src/store.ts` interdit à l'édition ; `src/lib/` veut des fonctions pures.
+
+Je fige le contrat, puis je fais produire un plan relisible.
+• Write availability endpoint plan Planner Agent
+✓ Write availability endpoint plan Planner Agent
+→ Read .opencode/plans/availability-endpoint.md
+
+# Todos
+[✓] Figer le contrat de l'endpoint availability (horaires, pas, format réponse, erreurs)
+[✓] Produire un plan relisible via planner
+[•] Implémenter via dev (lib pure + route + extension ApiBody + tests)
+[ ] Vérifier: reviewer sur le diff + tester sur l'API réelle
+
+Le plan est fidèle au contrat, avec des tables de cas de test vérifiables. Je le fais implémenter.
+• Implement availability steps 1-5 Dev Agent
+✓ Implement availability steps 1-5 Dev Agent
+• Refute availability diff Reviewer Agent
+• Exercise availability API Tester Agent
+Le `dev` rapporte tout au vert, avec sorties collées. Mais un rapport de `dev` reste une **allégation**. Je vérifie indépendamment : `reviewer` attaque le diff, `tester` exerce l'API réelle, et je lance moi-même le seuil de couverture (gate CI à 90 %).
+
+$ npm run test:coverage
+> salles-api@0.4.2 test:coverage
+> vitest run --coverage
+
+
+ RUN  v2.1.9 E:/IUT MONTREUIL/S5/IAIAIA/tp2/ex1-apres
+      Coverage enabled with v8
+
+ ✓ test/price.spec.ts (5 tests) 5ms
+ ✓ test/overlap.spec.ts (7 tests | 1 skipped) 6ms
+ ✓ test/availability.spec.ts (4 tests) 7ms
+ ✓ test/validate.spec.ts (6 tests) 7ms
+ ✓ test/store.spec.ts (6 tests) 9ms
+ ✓ test/rooms.spec.ts (11 tests) 104ms
+ ✓ test/bookings.spec.ts (14 tests) 184ms
+
+ Test Files  7 passed (7)
+      Tests  52 passed | 1 skipped (53)
+   Start at  17:58:58
+   Duration  1.66s (transform 334ms, setup 0ms, collect 1.45s, tests 322ms, environment 4ms, prepare 2.84s)
+
+ % Coverage report from v8
+------------------|---------|----------|---------|---------|-------------------
+File              | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+------------------|---------|----------|---------|---------|-------------------
+All files         |    98.1 |    95.52 |     100 |    98.1 |                   
+ src              |     100 |      100 |     100 |     100 |                   
+  app.ts          |     100 |      100 |     100 |     100 |                   
+  store.ts        |     100 |      100 |     100 |     100 |                   
+ src/lib          |     100 |      100 |     100 |     100 |                   
+  availability.ts |     100 |      100 |     100 |     100 |                   
+  overlap.ts      |     100 |      100 |     100 |     100 |                   
+  price.ts        |     100 |      100 |     100 |     100 |                   
+  validate.ts     |     100 |      100 |     100 |     100 |                   
+ src/routes       |   96.15 |     90.9 |     100 |   96.15 |                   
+  bookings.ts     |   96.82 |    88.88 |     100 |   96.82 | 63-64             
+  rooms.ts        |   95.12 |    93.33 |     100 |   95.12 | 39-40             
+------------------|---------|----------|---------|---------|-------------------
+
+✓ Exercise availability API Tester Agent
+✓ Refute availability diff Reviewer Agent
+• Fix impossible-date validation Dev Agent
+Vérification croisée concluante et **un vrai défaut trouvé** :
+
+- `reviewer` : **NOT REFUTED**, mais a levé une suspicion sur `Date.parse('2026-02-30')`.
+- `tester` : **BROKEN** — la suspicion est confirmée empiriquement. `2026-02-30`, `2026-02-29`, `2026-04-31`, `2026-06-31` renvoient **200** avec des horodatages impossibles (`2026-02-30T08:00:00Z`) au lieu du **400** exigé. Cause : V8 *reporte* ces dates (`2026-02-30` → 2 mars) au lieu de renvoyer `NaN`.
+- `test:coverage` (lancé par moi) : **98.1 %**, seuil 90 % tenu.
+
+Le contrat dit « date irréelle ⇒ 400 » : c'est une violation réelle. Je fais corriger par `dev` (bounded) avec un test de non-régression.
+✓ Fix impossible-date validation Dev Agent
+• Re-verify impossible dates fixed Tester Agent
+Correction appliquée. Je fais re-vérifier par le **même `tester`** que le défaut qu'il a trouvé est bien fermé, sans régression.
+
+$ npm run test:unit
+> salles-api@0.4.2 test:unit
+> vitest run
+
+
+ RUN  v2.1.9 E:/IUT MONTREUIL/S5/IAIAIA/tp2/ex1-apres
+
+ ✓ test/store.spec.ts (6 tests) 5ms
+ ✓ test/price.spec.ts (5 tests) 3ms
+ ✓ test/overlap.spec.ts (7 tests | 1 skipped) 5ms
+ ✓ test/availability.spec.ts (4 tests) 5ms
+ ✓ test/validate.spec.ts (6 tests) 7ms
+ ✓ test/rooms.spec.ts (13 tests) 93ms
+ ✓ test/bookings.spec.ts (14 tests) 141ms
+
+ Test Files  7 passed (7)
+      Tests  54 passed | 1 skipped (55)
+   Start at  18:03:48
+   Duration  1.26s (transform 219ms, setup 0ms, collect 1.06s, tests 260ms, environment 1ms, prepare 1.63s)
+
+✓ Re-verify impossible dates fixed Tester Agent
+`tester` confirme **FIXED** sans régression, et mon propre `test:unit` passe (54 tests, 7 fichiers). Je verrouille le seuil de couverture moi-même après le correctif.
+
+$ npm run test:coverage
+> salles-api@0.4.2 test:coverage
+> vitest run --coverage
+
+
+ RUN  v2.1.9 E:/IUT MONTREUIL/S5/IAIAIA/tp2/ex1-apres
+      Coverage enabled with v8
+
+ ✓ test/overlap.spec.ts (7 tests | 1 skipped) 3ms
+ ✓ test/availability.spec.ts (4 tests) 6ms
+ ✓ test/validate.spec.ts (6 tests) 8ms
+ ✓ test/store.spec.ts (6 tests) 7ms
+ ✓ test/price.spec.ts (5 tests) 3ms
+ ✓ test/rooms.spec.ts (13 tests) 93ms
+ ✓ test/bookings.spec.ts (14 tests) 143ms
+
+ Test Files  7 passed (7)
+      Tests  54 passed | 1 skipped (55)
+   Start at  18:04:35
+   Duration  1.27s (transform 232ms, setup 0ms, collect 1.02s, tests 264ms, environment 2ms, prepare 1.97s)
+
+ % Coverage report from v8
+------------------|---------|----------|---------|---------|-------------------
+File              | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+------------------|---------|----------|---------|---------|-------------------
+All files         |   98.13 |    95.65 |     100 |   98.13 |                   
+ src              |     100 |      100 |     100 |     100 |                   
+  app.ts          |     100 |      100 |     100 |     100 |                   
+  store.ts        |     100 |      100 |     100 |     100 |                   
+ src/lib          |     100 |      100 |     100 |     100 |                   
+  availability.ts |     100 |      100 |     100 |     100 |                   
+  overlap.ts      |     100 |      100 |     100 |     100 |                   
+  price.ts        |     100 |      100 |     100 |     100 |                   
+  validate.ts     |     100 |      100 |     100 |     100 |                   
+ src/routes       |   96.29 |    91.42 |     100 |   96.29 |                   
+  bookings.ts     |   96.82 |    88.88 |     100 |   96.82 | 63-64             
+  rooms.ts        |   95.55 |    94.11 |     100 |   95.55 | 43-44             
+------------------|---------|----------|---------|---------|-------------------
+
+# Todos
+[✓] Figer le contrat de l'endpoint availability (horaires, pas, format réponse, erreurs)
+[✓] Produire un plan relisible via planner
+[✓] Implémenter via dev (lib pure + route + extension ApiBody + tests)
+[✓] Vérifier: reviewer sur le diff + tester sur l'API réelle
+[✓] Corriger le défaut dates impossibles + re-vérifier
+
+C'est fait et vérifié. Voici le bilan.
+
+## Ce qui a été livré
+
+**Endpoint** `GET /rooms/:id/availability?date=YYYY-MM-DD` — `src/routes/rooms.ts`, handler synchrone calqué sur le modèle `bookings.ts` (try/catch + `ValidationError`), déclaré **avant** `/:id`.
+
+**Réponse 200** : `{ room, date, slots }` avec **12 créneaux** horaires `[08:00, 20:00[` UTC par pas de 1 h, chacun `{ startsAt, endsAt, available }`. Un créneau est indisponible s'il chevauche une réservation de la salle (sémantique `[début, fin[` déjà portée par `overlaps`).
+
+**Erreurs** : salle inconnue → `404 {"error":"salle inconnue"}` ; `date` absent → `400 "champ manquant ou vide : date"` ; format/date irréelle → `400 "date invalide : date"`.
+
+**Fichiers**
+- Nouveau `src/lib/availability.ts` (module pur, `slotsForDay`, `RoomSlot`, `export default`) — aucune I/O, `src/store.ts` **non touché**.
+- `src/routes/rooms.ts` (route + `requireIsoDay`).
+- `test/helpers/http.ts` (`ApiBody` étendue de `date?`/`slots?`).
+- Nouveau `test/availability.spec.ts` (4 cas unitaires) + `test/rooms.spec.ts` (9 cas d'intégration).
+
+## Décisions de contrat (aucune spec n'existait)
+
+Aucune notion d'horaires de salle, de créneaux ou de disponibilité n'existait dans le dépôt. J'ai figé : **ouverture 08:00–20:00 UTC**, **pas de 1 h**, et je renvoie **les 12 créneaux** (libres *et* occupés, chacun marqué `available`) plutôt que seulement les libres, pour rester exploitable. Ces choix sont écrits dans `.opencode/plans/availability-endpoint.md` et faciles à ajuster.
+
+## Le défaut trouvé en vérification
+
+`dev` rapportait « tout vert », mais les vérificateurs indépendants ont croisé :
+- `reviewer` → **NOT REFUTED**, avec une suspicion ciblée sur `Date.parse`.
+- `tester` sur l'API réelle → **BROKEN** : `2026-02-30`, `2026-02-29`, `2026-04-31` renvoyaient **200** avec des horodatages impossibles, car V8 *reporte* ces dates (`2026-02-30` → 2 mars) au lieu de renvoyer `NaN`.
+
+Corrigé par `dev` (round-trip `toISOString().slice(0,10) !== raw`), puis **re-testé par le même `tester` → FIXED**, sans régression.
+
+## Preuves finales (exécutées par moi)
+
+- `npm run test:unit` → **54 passed | 1 skipped** (7 fichiers).
+- `npm run test:coverage` → **98.13 %** (seuil CI 90 % ; `availability.ts` à 100 %).
+- `tester` : 12 slots confirmés, bornes `[début,fin[` correctes, `2024-02-29` accepté, `GET /rooms` et `GET /rooms/:id` intacts.
+
+Reste non commité (je n'ai pas committé, conformément aux règles). Note d'environnement : le port 3000 est occupé par un autre projet (`crousflow`) — le tester a utilisé `PORT=3001`, le serveur lit bien cette variable.
