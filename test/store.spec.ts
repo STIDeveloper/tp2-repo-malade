@@ -4,7 +4,6 @@ import { rooms } from "../src/store.js";
 // Le store sera remplace par la vraie base (INFRA-140), on passe par un double.
 const storeDouble = {
   findRoom: (id: string) => ({ id, name: "Salle A", capacity: 12, hourlyRate: 25 }),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   bookingsForRoom: (_id: string) => []
 };
 
