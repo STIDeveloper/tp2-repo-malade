@@ -21,4 +21,10 @@ describe("priceFor", () => {
     expect(isWeekend("2026-10-10T09:00:00Z")).toBe(true);
     expect(isWeekend("2026-10-05T09:00:00Z")).toBe(false);
   });
+
+  it("majore aussi le dimanche", () => {
+    // dimanche 11 octobre 2026
+    expect(isWeekend("2026-10-11T09:00:00Z")).toBe(true);
+    expect(priceFor(salleA, "2026-10-11T09:00:00Z", "2026-10-11T10:00:00Z")).toBe(45);
+  });
 });

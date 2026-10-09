@@ -77,7 +77,7 @@ describe("POST /bookings (suite)", () => {
       endsAt: "2026-10-05T12:00:00Z"
     });
     expect(res.status).toBe(409);
-    expect(res.body.conflictsWith).toBe("bk-1001");
+    expect(res.body).toEqual({ error: "creneau deja reserve", conflictsWith: "bk-1001" });
   });
 
   it("refuse un champ manquant et un nombre de personnes non entier", async () => {
@@ -117,6 +117,37 @@ describe("POST /bookings (suite)", () => {
   });
 });
 
+describe("POST /bookings (bornes)", () => {
+  it("refuse un creneau de duree nulle", async () => {
+    const res = await post({
+      roomId: "salle-b",
+      who: "moi",
+      people: 2,
+      startsAt: "2026-11-07T09:00:00Z",
+      endsAt: "2026-11-07T09:00:00Z"
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("endsAt doit etre posterieur a startsAt");
+  });
+
+  it("explique le refus pour une salle inconnue et une capacite depassee", async () => {
+    const base = { who: "moi", startsAt: "2026-11-07T09:00:00Z", endsAt: "2026-11-07T10:00:00Z" };
+    expect((await post({ ...base, roomId: "cave", people: 2 })).body.error).toBe("salle inconnue : cave");
+    expect((await post({ ...base, roomId: "salle-b", people: 7 })).body.error).toBe("capacite depassee : 7 > 6");
+  });
+
+  it("accepte exactement la capacite de la salle", async () => {
+    const res = await post({
+      roomId: "salle-b",
+      who: "equipe-5",
+      people: 6,
+      startsAt: "2026-11-08T09:00:00Z",
+      endsAt: "2026-11-08T10:00:00Z"
+    });
+    expect(res.status).toBe(201);
+  });
+});
+
 describe("GET /bookings", () => {
   it("filtre par salle", async () => {
     const res = await call("/bookings?roomId=amphi");
@@ -149,5 +180,6 @@ describe("DELETE /bookings/:id", () => {
 
     const second = await call(`/bookings/${id}`, { method: "DELETE" });
     expect(second.status).toBe(404);
+    expect(second.body.error).toBe("reservation inconnue");
   });
 });
