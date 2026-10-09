@@ -1,24 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createApp } from "../src/app.js";
-
-async function call(path: string, init?: RequestInit) {
-  const app = createApp();
-  const server = app.listen(0);
-  const { port } = server.address() as { port: number };
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}${path}`, init);
-    return { status: res.status, body: await res.json() };
-  } finally {
-    server.close();
-  }
-}
-
-const post = (payload: unknown) =>
-  call("/bookings", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+import { call, post } from "./helpers/http.js";
 
 describe("POST /bookings", () => {
   it("refuse une salle inconnue", async () => {
@@ -83,5 +64,90 @@ describe("POST /bookings", () => {
       endsAt: "2026-11-03T11:00:00Z"
     });
     expect(second.status).toBe(201);
+  });
+});
+
+describe("POST /bookings (suite)", () => {
+  it("refuse un creneau qui chevauche une reservation existante", async () => {
+    const res = await post({
+      roomId: "salle-a",
+      who: "moi",
+      people: 2,
+      startsAt: "2026-10-05T10:00:00Z",
+      endsAt: "2026-10-05T12:00:00Z"
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.conflictsWith).toBe("bk-1001");
+  });
+
+  it("refuse un champ manquant et un nombre de personnes non entier", async () => {
+    const sansQui = await post({
+      roomId: "salle-b",
+      people: 2,
+      startsAt: "2026-11-04T09:00:00Z",
+      endsAt: "2026-11-04T10:00:00Z"
+    });
+    expect(sansQui.status).toBe(400);
+    expect(sansQui.body.error).toContain("who");
+
+    const decimal = await post({
+      roomId: "salle-b",
+      who: "moi",
+      people: 2.5,
+      startsAt: "2026-11-04T09:00:00Z",
+      endsAt: "2026-11-04T10:00:00Z"
+    });
+    expect(decimal.status).toBe(400);
+    expect(decimal.body.error).toContain("people");
+  });
+
+  it("cree la reservation avec son prix et la rend visible dans la salle", async () => {
+    const res = await post({
+      roomId: "salle-b",
+      who: "equipe-3",
+      people: 6,
+      startsAt: "2026-11-05T14:00:00Z",
+      endsAt: "2026-11-05T16:00:00Z"
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.booking).toMatchObject({ roomId: "salle-b", people: 6, price: 30 });
+
+    const salle = await call("/rooms/salle-b");
+    expect(salle.body.bookings?.map((b) => b.id)).toContain(res.body.booking?.id);
+  });
+});
+
+describe("GET /bookings", () => {
+  it("filtre par salle", async () => {
+    const res = await call("/bookings?roomId=amphi");
+    expect(res.status).toBe(200);
+    expect(res.body.bookings?.length).toBeGreaterThan(0);
+    expect(res.body.bookings?.every((b) => b.roomId === "amphi")).toBe(true);
+  });
+
+  it("renvoie toutes les reservations sans filtre", async () => {
+    const res = await call("/bookings");
+    const salles = new Set(res.body.bookings?.map((b) => b.roomId));
+    expect(salles.has("amphi") && salles.has("salle-a")).toBe(true);
+  });
+});
+
+describe("DELETE /bookings/:id", () => {
+  it("annule une reservation puis repond 404 a la seconde annulation", async () => {
+    const created = await post({
+      roomId: "amphi",
+      who: "equipe-4",
+      people: 30,
+      startsAt: "2026-11-06T08:00:00Z",
+      endsAt: "2026-11-06T09:00:00Z"
+    });
+    const id = created.body.booking?.id;
+
+    const first = await call(`/bookings/${id}`, { method: "DELETE" });
+    expect(first.status).toBe(200);
+    expect(first.body.cancelled).toBe(id);
+
+    const second = await call(`/bookings/${id}`, { method: "DELETE" });
+    expect(second.status).toBe(404);
   });
 });
