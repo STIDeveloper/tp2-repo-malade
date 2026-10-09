@@ -14,6 +14,7 @@ npm start          # http://localhost:3000
 | GET | `/health` | sonde de vie |
 | GET | `/rooms` | catalogue des salles |
 | GET | `/rooms/:id` | une salle et ses reservations |
+| GET | `/rooms/:id/availability?date=YYYY-MM-DD` | les 12 creneaux d'une heure (08h-20h UTC) du jour, libres ou occupes |
 | GET | `/bookings?roomId=` | les reservations |
 | POST | `/bookings` | creer une reservation |
 | DELETE | `/bookings/:id` | annuler une reservation |
