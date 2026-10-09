@@ -1,5 +1,6 @@
 import { createApp } from "../../src/app.js";
 import type { Booking, Room } from "../../src/store.js";
+import type { RoomSlot } from "../../src/lib/availability.js";
 
 /** Corps JSON possibles des reponses de l'API. */
 export interface ApiBody {
@@ -11,6 +12,8 @@ export interface ApiBody {
   rooms?: Room[];
   booking?: Booking;
   bookings?: Booking[];
+  date?: string;
+  slots?: RoomSlot[];
 }
 
 /** Demarre l'application sur un port libre, envoie une requete, puis arrete le serveur. */
