@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks post-ecriture. Branche dans opencode.json (experimental.hook.file_edited).
+# Checks post-ecriture. Appele par .opencode/plugin/checks.js apres chaque ecriture d'un .ts.
 # Objectif : l'agent voit le resultat de ses checks sans qu'on ait a le lui demander.
 set +e
 status=0
