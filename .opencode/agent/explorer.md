@@ -12,7 +12,9 @@ permission:
   list: allow
   lsp: allow
   webfetch: allow
-  edit: allow
+  edit:
+    "*": deny
+    ".opencode/plans/*-notes.md": allow
   task: deny
   bash:
     "*": deny
@@ -22,7 +24,6 @@ permission:
     "git blame*": allow
     "ls*": allow
     "find *": allow
-    "curl*": allow
 ---
 
 You are in explorer mode.
@@ -78,5 +79,5 @@ you can and say which part you dropped.
   assuming the framework's usual conventions apply here.
 - **No fixes, no refactoring advice, no code review.** Even if the code is obviously bad,
   report it under Gotchas as a fact and move on.
-- Use `webfetch` and `curl` freely to check an external library's documentation, an
-  internal service, or an API response you need in order to explain the code.
+- Use `webfetch` to check an external library's documentation. Never call an internal
+  service or a running API: you explain code, you do not exercise it (that is `tester`).
