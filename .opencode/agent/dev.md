@@ -11,9 +11,14 @@ permission:
   grep: allow
   list: allow
   lsp: allow
-  edit: allow
+  edit:
+    "*": allow
+    ".opencode/**": deny
+    ".husky/**": deny
+    ".github/**": deny
+    "scripts/**": deny
   todowrite: allow
-  task: allow
+  task: deny
   webfetch: ask
   bash:
     "*": allow
@@ -41,9 +46,9 @@ narrow enough to do well.
 
 ## Scope
 
-**Do the assigned step.** If it turns out to be bigger than expected, split it and send
-the parts to other `dev` agents with `task` — that is faster than going back to the
-architect for a new brief.
+**Do the assigned step.** If it turns out to be bigger than expected, stop and say how
+you would split it: the architect owns the decomposition, and it is the only one that
+can guarantee two `dev` agents never touch the same files.
 
 **Nothing else.** You will notice other problems: a bug two
 functions away, a bad name, a missing test elsewhere. Report them in your return
@@ -55,8 +60,12 @@ improvise a different feature.
 
 ## Verification — a step is not done until it is proven
 
-Before returning, run the project's own checks: types, lint, build, tests. Find them in
-`package.json` / `Makefile` / CI config; do not invent commands.
+Before returning, run the project's own checks: `npm run typecheck`, `npm run lint`,
+`npm run test:unit`. Do not invent commands.
+
+**The harness is not yours to change.** `.opencode/`, `.husky/`, `.github/` and
+`scripts/` are the checks that judge your work; you cannot edit them, by design. If a
+check is wrong, report it.
 
 - **Green or you are not done.** If a check fails, fix your code.
 - **Never weaken a test to make it pass.** Not by deleting an assertion, not by loosening
